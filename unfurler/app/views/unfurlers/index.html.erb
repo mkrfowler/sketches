@@ -1,0 +1,69 @@
+<script>
+function guid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+function replicate(base_id, target) {
+  var marker = guid();
+  var base = document.getElementById(base_id);
+  var clone = base.cloneNode(true);
+
+  clone.id = clone.id + '-' + marker;
+  clone.style.display = '';
+
+  for (desc of clone.querySelectorAll('*')) {
+    desc.style.display = '';
+  }
+
+  // And now we just remap all our names and ids to achieve generality
+  // The base element is 'obvious': we have the name already
+  var base_matcher = new RegExp(base_id, 'g');
+  var base_subst   = base_id + '-' + marker;
+  for (desc of clone.querySelectorAll('*')) {
+    desc.id = desc.id.replace(base_matcher, base_subst);
+    if (desc.name !== undefined) {
+      desc.name = desc.name.replace(base_matcher, base_subst);
+    }
+  }
+
+  // Then we walk subsequent unfurlers; if we had to e.g. produce _n_
+  // elements then this would be reasonably factored to true
+  // recursion; as is (for a demo of the idea) we shouldn't need to...
+  for (unfurler of clone.querySelectorAll('* > .unfurlable')) {
+    var unfurling = unfurler.className.match(/unfurls-(\w+)/)[1];
+    var matcher = new RegExp(unfurling, 'g');
+    var subst = unfurling + '-' + marker; //  Limitation: unfurled elements share their identity on a unfurling iteration...
+    for (desc of unfurler.querySelectorAll('*')) {
+      desc.id = desc.id.replace(matcher, subst);
+      if (desc.name !==  undefined) {
+        desc.name = desc.name.replace(matcher, subst);
+      }
+    }
+  }
+  target.append(clone);
+}
+</script>
+
+
+<%= form_for(:unfurler, url: unfurler_path) do |f| %>
+<div> <!-- We attach this wrapper for insertion sanity -->
+  <div id='base' class='unfurlable unfurls-base' style='display:none'>
+    <%= f.fields_for(:base) do |o| %>
+      <%= o.text_field :value, value: 'Outer template' %>
+      <%= o.submit 'Replicate', onclick: 'replicate("base", event.target.closest(".unfurlable").parentNode); return false' %>
+      <div id='inner', class='unfurlable unfurls-inner' style='display:none'>
+        <%= o.fields_for(:inner) do |i| %>
+          <%= i.text_field :value, value: 'Inner template' %>
+          <%= i.submit 'Replicate', onclick: 'replicate("inner", event.target.closest(".unfurlable").parentNode); return false' %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<script>replicate("base", document.querySelector('#base > input').closest('.unfurlable').parentNode)</script>
+<%= f.submit 'Submit' %>
+<% end %>
